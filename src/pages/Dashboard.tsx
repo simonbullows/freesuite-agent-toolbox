@@ -8,6 +8,7 @@ import {
   AlertTriangle, Download, Play, ArrowRight, X, ExternalLink, Terminal, Copy,
   MoreHorizontal, ArrowUpRight,
 } from 'lucide-react';
+import heroBanner from '../assets/images/hero_banner.png';
 
 /* ── Install info type ── */
 interface AppInstallInfo {
@@ -148,7 +149,7 @@ export function Dashboard() {
             <div className="flex flex-col md:flex-row h-[280px]">
               <div className="flex-1 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-black/80 z-10" />
-                <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/20 to-purple-600/20 group-hover:scale-105 transition-transform duration-700 ease-out" />
+                <div className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:scale-105 transition-transform duration-700 ease-out" style={{ backgroundImage: `url(${heroBanner})` }} />
               </div>
               <div className="flex-1 p-10 flex flex-col justify-center bg-zinc-900/30 backdrop-blur-sm border-l border-white/5">
                 <div className="inline-flex items-center px-3 py-1 rounded-full bg-zinc-800/80 border border-zinc-700 w-max mb-4">
