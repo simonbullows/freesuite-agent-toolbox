@@ -1543,7 +1543,7 @@ pub struct PdfStatus {
 
 #[tauri::command]
 async fn pdf_status(config: State<'_, AppConfig>) -> Result<PdfStatus, String> {
-    let url = "http://127.0.0.1:8080".to_string(); // Default Stirling PDF port
+    let url = config.data.lock().unwrap().stirling_pdf_url.clone();
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(3))
         .build().map_err(|e| e.to_string())?;
@@ -1555,6 +1555,208 @@ async fn pdf_status(config: State<'_, AppConfig>) -> Result<PdfStatus, String> {
         Ok(resp) => Ok(PdfStatus { running: true, url: url.clone(), error: Some(format!("Status: {}", resp.status())) }),
         Err(e) => Ok(PdfStatus { running: false, url, error: Some(format!("Not reachable: {}", e)) }),
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// APP LAUNCHER — Open installed software from the dashboard
+// ═══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchResult {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppInstallInfo {
+    pub app_id: String,
+    pub name: String,
+    pub installed: bool,
+    pub version: Option<String>,
+    pub description: String,
+    pub install_url: String,
+    pub install_command: Option<String>,
+}
+
+#[tauri::command]
+fn launch_app(app_id: String, config: State<AppConfig>) -> LaunchResult {
+    let result = match app_id.as_str() {
+        "docs" => {
+            // Launch LibreOffice Writer
+            std::process::Command::new("soffice")
+                .arg("--writer")
+                .spawn()
+                .map(|_| "LibreOffice Writer launched".to_string())
+        },
+        "pdf" => {
+            // Open Stirling PDF in browser
+            let url = config.data.lock().unwrap().stirling_pdf_url.clone();
+            #[cfg(target_os = "windows")]
+            let r = std::process::Command::new("cmd").args(["/C", "start", &url]).spawn()
+                .map(|_| format!("Opened Stirling PDF at {}", url));
+            #[cfg(target_os = "macos")]
+            let r = std::process::Command::new("open").arg(&url).spawn()
+                .map(|_| format!("Opened Stirling PDF at {}", url));
+            #[cfg(target_os = "linux")]
+            let r = std::process::Command::new("xdg-open").arg(&url).spawn()
+                .map(|_| format!("Opened Stirling PDF at {}", url));
+            r
+        },
+        "image" => {
+            // Open ComfyUI in browser
+            let url = config.comfyui_url.lock().unwrap().clone();
+            #[cfg(target_os = "windows")]
+            let r = std::process::Command::new("cmd").args(["/C", "start", &url]).spawn()
+                .map(|_| format!("Opened ComfyUI at {}", url));
+            #[cfg(target_os = "macos")]
+            let r = std::process::Command::new("open").arg(&url).spawn()
+                .map(|_| format!("Opened ComfyUI at {}", url));
+            #[cfg(target_os = "linux")]
+            let r = std::process::Command::new("xdg-open").arg(&url).spawn()
+                .map(|_| format!("Opened ComfyUI at {}", url));
+            r
+        },
+        "video" => {
+            // FFmpeg is CLI only — open a terminal
+            #[cfg(target_os = "windows")]
+            let r = std::process::Command::new("cmd").args(["/C", "start", "cmd", "/K", "ffmpeg -version"])
+                .spawn().map(|_| "FFmpeg terminal opened".to_string());
+            #[cfg(not(target_os = "windows"))]
+            let r = Ok::<String, std::io::Error>("FFmpeg is CLI-only — use via agent tools".to_string());
+            r
+        },
+        "notes" => {
+            // Open Obsidian vault
+            let vault = config.obsidian_vault_path.lock().unwrap().clone();
+            let uri = format!("obsidian://open?path={}", urlencoding_encode(&vault));
+            #[cfg(target_os = "windows")]
+            let r = std::process::Command::new("cmd").args(["/C", "start", "", &uri]).spawn()
+                .map(|_| "Obsidian vault opened".to_string());
+            #[cfg(target_os = "macos")]
+            let r = std::process::Command::new("open").arg(&uri).spawn()
+                .map(|_| "Obsidian vault opened".to_string());
+            #[cfg(target_os = "linux")]
+            let r = std::process::Command::new("xdg-open").arg(&uri).spawn()
+                .map(|_| "Obsidian vault opened".to_string());
+            r
+        },
+        "3d" => {
+            std::process::Command::new("blender").spawn()
+                .map(|_| "Blender launched".to_string())
+        },
+        _ => {
+            return LaunchResult {
+                success: false,
+                message: format!("No launcher configured for '{}'", app_id),
+            };
+        }
+    };
+
+    match result {
+        Ok(msg) => LaunchResult { success: true, message: msg },
+        Err(e) => LaunchResult { success: false, message: format!("Launch failed: {}", e) },
+    }
+}
+
+/// Simple percent-encoding for URI parameters
+fn urlencoding_encode(s: &str) -> String {
+    s.bytes().map(|b| match b {
+        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+            String::from(b as char)
+        },
+        _ => format!("%{:02X}", b),
+    }).collect()
+}
+
+#[tauri::command]
+fn get_install_info(app_id: String) -> AppInstallInfo {
+    match app_id.as_str() {
+        "docs" => AppInstallInfo {
+            app_id: app_id.clone(), name: "LibreOffice".into(), installed: cmd_exists("soffice"),
+            version: cmd_version("soffice", "--version"),
+            description: "Full office suite — documents, spreadsheets, presentations".into(),
+            install_url: "https://www.libreoffice.org/download/download-libreoffice/".into(),
+            install_command: Some("winget install TheDocumentFoundation.LibreOffice".into()),
+        },
+        "pdf" => AppInstallInfo {
+            app_id: app_id.clone(), name: "Stirling PDF".into(), installed: false,
+            version: None,
+            description: "Self-hosted PDF manipulation toolkit (Docker)".into(),
+            install_url: "https://github.com/Stirling-Tools/Stirling-PDF".into(),
+            install_command: Some("docker run -p 8080:8080 frooodle/s-pdf:latest".into()),
+        },
+        "image" => AppInstallInfo {
+            app_id: app_id.clone(), name: "ComfyUI".into(), installed: false,
+            version: None,
+            description: "AI image generation with node-based workflow editor".into(),
+            install_url: "https://github.com/comfyanonymous/ComfyUI".into(),
+            install_command: Some("git clone https://github.com/comfyanonymous/ComfyUI && cd ComfyUI && pip install -r requirements.txt".into()),
+        },
+        "video" => AppInstallInfo {
+            app_id: app_id.clone(), name: "FFmpeg".into(), installed: cmd_exists("ffmpeg"),
+            version: cmd_version("ffmpeg", "-version"),
+            description: "Universal audio/video processing toolkit".into(),
+            install_url: "https://ffmpeg.org/download.html".into(),
+            install_command: Some("winget install Gyan.FFmpeg".into()),
+        },
+        "notes" => AppInstallInfo {
+            app_id: app_id.clone(), name: "Obsidian".into(), installed: false, // Can't easily detect
+            version: None,
+            description: "Markdown-based knowledge management".into(),
+            install_url: "https://obsidian.md/download".into(),
+            install_command: Some("winget install Obsidian.Obsidian".into()),
+        },
+        "3d" => AppInstallInfo {
+            app_id: app_id.clone(), name: "Blender".into(), installed: cmd_exists("blender"),
+            version: cmd_version("blender", "--version"),
+            description: "3D creation suite — modeling, animation, rendering".into(),
+            install_url: "https://www.blender.org/download/".into(),
+            install_command: Some("winget install BlenderFoundation.Blender".into()),
+        },
+        "crm" => AppInstallInfo {
+            app_id: app_id.clone(), name: "Twenty CRM".into(), installed: false,
+            version: None,
+            description: "Open-source CRM with GraphQL API".into(),
+            install_url: "https://twenty.com".into(),
+            install_command: Some("npx twenty@latest".into()),
+        },
+        "email" => AppInstallInfo {
+            app_id: app_id.clone(), name: "Email (IMAP/SMTP)".into(), installed: false,
+            version: None,
+            description: "Configure email access in Settings → Email".into(),
+            install_url: "".into(),
+            install_command: None,
+        },
+        "project" => AppInstallInfo {
+            app_id: app_id.clone(), name: "Plane".into(), installed: false,
+            version: None,
+            description: "Open-source project management".into(),
+            install_url: "https://plane.so".into(),
+            install_command: None,
+        },
+        "music" => AppInstallInfo {
+            app_id: app_id.clone(), name: "ACE-Step".into(), installed: false,
+            version: None,
+            description: "AI music generation model".into(),
+            install_url: "https://github.com/ace-step/ACE-Step".into(),
+            install_command: Some("pip install ace-step".into()),
+        },
+        _ => AppInstallInfo {
+            app_id: app_id.clone(), name: "Unknown".into(), installed: false,
+            version: None, description: "".into(), install_url: "".into(), install_command: None,
+        },
+    }
+}
+
+fn cmd_exists(cmd: &str) -> bool {
+    std::process::Command::new(cmd).arg("--version").output()
+        .map(|o| o.status.success()).unwrap_or(false)
+}
+
+fn cmd_version(cmd: &str, arg: &str) -> Option<String> {
+    std::process::Command::new(cmd).arg(arg).output().ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").trim().to_string())
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1622,6 +1824,9 @@ pub fn run() {
             office_create_document,
             // Stirling PDF
             pdf_status,
+            // App launcher
+            launch_app,
+            get_install_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

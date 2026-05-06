@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { invoke } from '@tauri-apps/api/core';
 import { useToolboxStore, type AgentMode, type ToolCapability } from '../stores/toolboxStore';
 import {
   FileText,
@@ -26,7 +27,75 @@ import {
   Play,
   Zap,
   ArrowUpRight,
+  X,
+  ExternalLink,
+  Terminal,
+  Copy,
 } from 'lucide-react';
+
+/* ── Install info type ── */
+interface AppInstallInfo {
+  app_id: string;
+  name: string;
+  installed: boolean;
+  version: string | null;
+  description: string;
+  install_url: string;
+  install_command: string | null;
+}
+
+/* ── Install Modal ── */
+function InstallModal({ info, onClose }: { info: AppInstallInfo; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copyCmd = () => {
+    if (info.install_command) {
+      navigator.clipboard.writeText(info.install_command);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="glass rounded-2xl p-6 w-[420px] max-w-[90vw] space-y-4 border border-white/[0.06]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-[15px] font-bold text-white">{info.name}</h3>
+          <button onClick={onClose} className="text-white/20 hover:text-white/50 transition-colors"><X size={16} /></button>
+        </div>
+        <p className="text-[12px] text-white/40">{info.description}</p>
+        {info.installed && info.version && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success-500/8 border border-success-500/15">
+            <span className="text-[10px] text-success-400 font-bold">✅ Installed</span>
+            <span className="text-[10px] text-white/20 font-mono">{info.version}</span>
+          </div>
+        )}
+        {info.install_command && (
+          <div className="space-y-1.5">
+            <span className="text-[9px] text-white/25 uppercase tracking-widest font-bold flex items-center gap-1"><Terminal size={9} /> Quick Install</span>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.05] text-[11px] text-white/60 font-mono truncate">{info.install_command}</code>
+              <button onClick={copyCmd} className="px-2.5 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] transition-colors">
+                {copied ? <span className="text-[9px] text-success-400 font-bold">Copied</span> : <Copy size={12} className="text-white/30" />}
+              </button>
+            </div>
+          </div>
+        )}
+        {info.install_url && (
+          <a href={info.install_url} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-500/10 border border-accent-500/15 hover:bg-accent-500/20 transition-colors w-fit">
+            <ExternalLink size={11} className="text-accent-400" />
+            <span className="text-[11px] text-accent-400 font-semibold">Download Page</span>
+          </a>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
 
 /* ── App tile data ── */
 interface AppTile {
@@ -140,6 +209,8 @@ export function Dashboard() {
     capabilities, checkCapabilities,
     agentMode, setAgentMode,
   } = useToolboxStore();
+  const [installInfo, setInstallInfo] = useState<AppInstallInfo | null>(null);
+  const [launchMsg, setLaunchMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTools();
@@ -147,6 +218,29 @@ export function Dashboard() {
     fetchExecutions();
     checkCapabilities();
   }, []);
+
+  const handleTileClick = async (tile: AppTile) => {
+    const status = getStatus(tile, capabilities);
+    if (status.badge === '✅') {
+      // Launch the app
+      try {
+        const result = await invoke<{ success: boolean; message: string }>('launch_app', { appId: tile.id });
+        setLaunchMsg(result.message);
+        setTimeout(() => setLaunchMsg(null), 2500);
+      } catch (e) {
+        setLaunchMsg(`Error: ${e}`);
+        setTimeout(() => setLaunchMsg(null), 3000);
+      }
+    } else {
+      // Show install info
+      try {
+        const info = await invoke<AppInstallInfo>('get_install_info', { appId: tile.id });
+        setInstallInfo(info);
+      } catch (e) {
+        console.error('Failed to get install info:', e);
+      }
+    }
+  };
 
   const readyTools = capabilities.filter(c => c.installed || c.status === 'cpu_only').length;
   const gpuVram = capabilities.length > 0 ? capabilities[0].your_vram_mb : 0;
@@ -205,6 +299,7 @@ export function Dashboard() {
             return (
               <motion.button
                 key={tile.id}
+                onClick={() => handleTileClick(tile)}
                 initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.25 + i * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
@@ -372,6 +467,21 @@ export function Dashboard() {
           )}
         </motion.div>
       </div>
+      {/* Launch toast */}
+      <AnimatePresence>
+        {launchMsg && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-xl glass border border-white/[0.06] flex items-center gap-2">
+            <ArrowUpRight size={12} className="text-success-400" />
+            <span className="text-[11px] text-white/60">{launchMsg}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Install modal */}
+      <AnimatePresence>
+        {installInfo && <InstallModal info={installInfo} onClose={() => setInstallInfo(null)} />}
+      </AnimatePresence>
     </div>
   );
 }
