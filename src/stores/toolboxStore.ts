@@ -22,7 +22,7 @@ export interface ToolParameter {
 export interface ToolExecution {
   id: string;
   tool_id: string;
-  status: 'queued' | 'running' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'pending_approval';
   input: Record<string, unknown>;
   output: unknown;
   error: string | null;
@@ -66,6 +66,18 @@ export interface DepInfo {
   category: string;
 }
 
+export interface ToolCapability {
+  tool: string;
+  category: string;
+  min_vram_mb: number;
+  your_vram_mb: number;
+  status: 'local' | 'tight' | 'cloud_recommended' | 'cpu_only';
+  installed: boolean;
+  notes: string;
+}
+
+export type AgentMode = 'autopilot' | 'spectator' | 'copilot';
+
 interface ToolboxStore {
   // Tools
   tools: ToolSchema[];
@@ -90,6 +102,15 @@ interface ToolboxStore {
   dependencies: DepInfo[];
   scanningDeps: boolean;
   scanDependencies: () => Promise<void>;
+
+  // Capabilities
+  capabilities: ToolCapability[];
+  scanningCapabilities: boolean;
+  checkCapabilities: () => Promise<void>;
+
+  // Agent Mode
+  agentMode: AgentMode;
+  setAgentMode: (mode: AgentMode) => void;
 }
 
 export const useToolboxStore = create<ToolboxStore>((set) => ({
@@ -162,4 +183,22 @@ export const useToolboxStore = create<ToolboxStore>((set) => ({
       set({ scanningDeps: false });
     }
   },
+
+  // Capabilities
+  capabilities: [],
+  scanningCapabilities: false,
+  checkCapabilities: async () => {
+    set({ scanningCapabilities: true });
+    try {
+      const caps = await invoke<ToolCapability[]>('check_capabilities');
+      set({ capabilities: caps, scanningCapabilities: false });
+    } catch (err) {
+      console.error('Failed to check capabilities:', err);
+      set({ scanningCapabilities: false });
+    }
+  },
+
+  // Agent Mode
+  agentMode: 'copilot',
+  setAgentMode: (mode) => set({ agentMode: mode }),
 }));
