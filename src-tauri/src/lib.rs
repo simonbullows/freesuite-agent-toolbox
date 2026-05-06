@@ -317,6 +317,68 @@ impl Default for ToolRegistryState {
             returns: "{ checkpoints[], loras[], controlnets[] }".into(), is_native: false,
         });
 
+        // ── 3D Pipeline Tools ──
+        tools.push(ToolSchema {
+            id: "mesh.from_image".into(), name: "Image to 3D".into(),
+            description: "Generate a 3D mesh from a single image using TripoSR".into(), category: "3d".into(),
+            parameters: vec![
+                ToolParameter { name: "image_path".into(), param_type: "string".into(), description: "Path to source image".into(), required: true, default_value: None },
+                ToolParameter { name: "output_path".into(), param_type: "string".into(), description: "Output .glb/.obj path".into(), required: true, default_value: None },
+                ToolParameter { name: "half_precision".into(), param_type: "boolean".into(), description: "Use half precision to reduce VRAM (~3.5GB vs 6GB)".into(), required: false, default_value: Some("true".into()) },
+            ],
+            returns: "{ output_path, vertices, faces }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "blender.execute".into(), name: "Run Blender Script".into(),
+            description: "Execute bpy Python code in an active Blender session via MCP socket".into(), category: "3d".into(),
+            parameters: vec![
+                ToolParameter { name: "script".into(), param_type: "string".into(), description: "Python/bpy code to execute".into(), required: true, default_value: None },
+            ],
+            returns: "{ success, output, error }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "blender.status".into(), name: "Blender MCP Status".into(),
+            description: "Check if Blender MCP socket is alive".into(), category: "3d".into(),
+            parameters: vec![],
+            returns: "{ running, blender_version }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "blender.export".into(), name: "Export Blender Scene".into(),
+            description: "Export current Blender scene to .glb/.fbx/.obj".into(), category: "3d".into(),
+            parameters: vec![
+                ToolParameter { name: "output_path".into(), param_type: "string".into(), description: "Export file path".into(), required: true, default_value: None },
+                ToolParameter { name: "format".into(), param_type: "string".into(), description: "Export format: glb, fbx, obj".into(), required: false, default_value: Some("glb".into()) },
+            ],
+            returns: "{ output_path, file_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "godot.import_asset".into(), name: "Import to Godot".into(),
+            description: "Import a 3D asset into a Godot project".into(), category: "3d".into(),
+            parameters: vec![
+                ToolParameter { name: "asset_path".into(), param_type: "string".into(), description: "Path to .glb/.fbx file".into(), required: true, default_value: None },
+                ToolParameter { name: "project_path".into(), param_type: "string".into(), description: "Godot project directory".into(), required: true, default_value: None },
+                ToolParameter { name: "target_dir".into(), param_type: "string".into(), description: "Target dir inside project (e.g. res://models/)".into(), required: false, default_value: Some("res://assets/".into()) },
+            ],
+            returns: "{ imported_path }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "godot.run_script".into(), name: "Run Godot Script".into(),
+            description: "Execute GDScript headlessly in a Godot project".into(), category: "3d".into(),
+            parameters: vec![
+                ToolParameter { name: "project_path".into(), param_type: "string".into(), description: "Godot project directory".into(), required: true, default_value: None },
+                ToolParameter { name: "script_path".into(), param_type: "string".into(), description: "Path to .gd script".into(), required: true, default_value: None },
+            ],
+            returns: "{ success, output }".into(), is_native: false,
+        });
+
+        // ── Capability Gate ──
+        tools.push(ToolSchema {
+            id: "system.capabilities".into(), name: "Capability Check".into(),
+            description: "Check which tools can run locally based on detected GPU/VRAM/RAM".into(), category: "system".into(),
+            parameters: vec![],
+            returns: "Array of { tool, min_vram_mb, your_vram_mb, status, notes }".into(), is_native: true,
+        });
+
         Self {
             tools: Mutex::new(tools),
             executions: Mutex::new(Vec::new()),
@@ -1041,6 +1103,93 @@ async fn comfy_status(config: State<'_, AppConfig>) -> Result<ComfyStatus, Strin
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// CAPABILITY GATE — What can run on this machine?
+// ═══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCapability {
+    pub tool: String,
+    pub category: String,
+    pub min_vram_mb: u64,
+    pub your_vram_mb: u64,
+    pub status: String,      // "local" | "tight" | "cloud_recommended" | "cpu_only"
+    pub installed: bool,
+    pub notes: String,
+}
+
+#[tauri::command]
+fn check_capabilities() -> Vec<ToolCapability> {
+    // Detect GPU VRAM via sysinfo (limited) + nvidia-smi fallback
+    let detected_vram = detect_vram_mb();
+
+    let tool_reqs: Vec<(&str, &str, u64, &str, &str)> = vec![
+        // (tool_name, category, min_vram_mb, check_cmd, notes)
+        ("FFmpeg",             "media",  0,    "ffmpeg",    "CPU-only, runs on anything"),
+        ("Obsidian",           "knowledge", 0, "",          "Filesystem access only"),
+        ("Blender",            "3d",     2048, "blender",   "2GB min, scripting is CPU-bound"),
+        ("Godot",              "3d",     1024, "godot",     "1GB min for headless"),
+        ("ComfyUI (SD 1.5)",   "ai_gen", 4096, "",          "Minimum viable for image gen"),
+        ("ComfyUI (SDXL)",     "ai_gen", 8192, "",          "8GB+ for quality image gen"),
+        ("ComfyUI (Video)",    "ai_gen", 12288,"",          "12GB+ for video generation"),
+        ("TripoSR",            "3d",     6144, "",          "Image-to-3D, 6GB default"),
+        ("TripoSR (half)",     "3d",     3584, "",          "Image-to-3D with --half-precision"),
+        ("ACE-Step (base)",    "music",  4096, "",          "Music gen, base model"),
+        ("ACE-Step (XL)",      "music",  12288,"",          "Music gen, high quality"),
+        ("Open Design",        "design", 0,    "",          "LLM-driven, no GPU needed"),
+    ];
+
+    tool_reqs.iter().map(|(name, cat, min_vram, cmd, notes)| {
+        let installed = if cmd.is_empty() {
+            false // Can't auto-detect, user configures
+        } else {
+            std::process::Command::new(cmd)
+                .arg("--version")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        };
+
+        let status = if *min_vram == 0 {
+            "cpu_only".to_string()
+        } else if detected_vram >= *min_vram {
+            "local".to_string()
+        } else if detected_vram >= min_vram * 80 / 100 {
+            "tight".to_string()
+        } else {
+            "cloud_recommended".to_string()
+        };
+
+        ToolCapability {
+            tool: name.to_string(),
+            category: cat.to_string(),
+            min_vram_mb: *min_vram,
+            your_vram_mb: detected_vram,
+            status,
+            installed,
+            notes: notes.to_string(),
+        }
+    }).collect()
+}
+
+/// Detect GPU VRAM in MB. Tries nvidia-smi first, falls back to 0.
+fn detect_vram_mb() -> u64 {
+    // Try nvidia-smi for NVIDIA GPUs
+    if let Ok(output) = std::process::Command::new("nvidia-smi")
+        .args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
+        .output()
+    {
+        if output.status.success() {
+            let raw = String::from_utf8_lossy(&output.stdout);
+            if let Ok(mb) = raw.trim().parse::<u64>() {
+                return mb;
+            }
+        }
+    }
+    // Fallback: no dedicated GPU detected
+    0
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // APP ENTRY
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1087,6 +1236,8 @@ pub fn run() {
             ffmpeg_thumbnail,
             // ComfyUI
             comfy_status,
+            // Capability gate
+            check_capabilities,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
