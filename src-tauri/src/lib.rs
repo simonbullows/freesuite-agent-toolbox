@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::io::Write;
-use tauri::State;
+use tauri::{State, Manager};
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -912,23 +912,151 @@ fn scan_dependencies() -> Vec<DepInfo> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// APP CONFIG — Stores user settings like vault path, ComfyUI port
+// APP CONFIG — Persisted user settings (config.json)
 // ═══════════════════════════════════════════════════════════════════
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigData {
+    #[serde(default = "default_mcp_port")]
+    pub mcp_port: u16,
+    #[serde(default = "default_obsidian_vault_path")]
+    pub obsidian_vault_path: String,
+    #[serde(default = "default_comfyui_url")]
+    pub comfyui_url: String,
+    #[serde(default = "default_stirling_url")]
+    pub stirling_pdf_url: String,
+    #[serde(default)]
+    pub smtp_host: String,
+    #[serde(default = "default_smtp_port")]
+    pub smtp_port: u16,
+    #[serde(default)]
+    pub smtp_username: String,
+    #[serde(default)]
+    pub smtp_password: String,
+    #[serde(default = "default_llm_provider")]
+    pub llm_provider: String,
+    #[serde(default = "default_llm_model")]
+    pub llm_model: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default = "default_agent_mode")]
+    pub agent_mode: String,
+}
+
+fn default_mcp_port() -> u16 { 3100 }
+fn default_obsidian_vault_path() -> String { r"C:\Users\simon\OBSIDIAN MAIN VAULT\Simon Main Obsidian".to_string() }
+fn default_comfyui_url() -> String { "http://127.0.0.1:8188".to_string() }
+fn default_stirling_url() -> String { "http://127.0.0.1:8080".to_string() }
+fn default_smtp_port() -> u16 { 587 }
+fn default_llm_provider() -> String { "ollama".to_string() }
+fn default_llm_model() -> String { "llama3".to_string() }
+fn default_agent_mode() -> String { "copilot".to_string() }
+
+impl Default for ConfigData {
+    fn default() -> Self {
+        Self {
+            mcp_port: default_mcp_port(),
+            obsidian_vault_path: default_obsidian_vault_path(),
+            comfyui_url: default_comfyui_url(),
+            stirling_pdf_url: default_stirling_url(),
+            smtp_host: String::new(),
+            smtp_port: default_smtp_port(),
+            smtp_username: String::new(),
+            smtp_password: String::new(),
+            llm_provider: default_llm_provider(),
+            llm_model: default_llm_model(),
+            api_key: String::new(),
+            agent_mode: default_agent_mode(),
+        }
+    }
+}
+
+/// Runtime config wrapper with interior mutability for existing command signatures
 pub struct AppConfig {
+    pub data: Mutex<ConfigData>,
+    pub config_path: Mutex<PathBuf>,
+    // Backward-compat accessors used by obsidian/comfyui commands
     pub obsidian_vault_path: Mutex<String>,
     pub comfyui_url: Mutex<String>,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
+impl AppConfig {
+    /// Load config from disk, or create default if missing
+    pub fn load(config_dir: &Path) -> Self {
+        let config_path = config_dir.join("config.json");
+        let data = if config_path.exists() {
+            match fs::read_to_string(&config_path) {
+                Ok(contents) => serde_json::from_str::<ConfigData>(&contents).unwrap_or_default(),
+                Err(_) => ConfigData::default(),
+            }
+        } else {
+            let default = ConfigData::default();
+            // Create config dir if needed and write default
+            let _ = fs::create_dir_all(config_dir);
+            if let Ok(json) = serde_json::to_string_pretty(&default) {
+                let _ = fs::write(&config_path, json);
+            }
+            default
+        };
+
+        let obsidian = data.obsidian_vault_path.clone();
+        let comfyui = data.comfyui_url.clone();
+
         Self {
-            obsidian_vault_path: Mutex::new(
-                r"C:\Users\simon\OBSIDIAN MAIN VAULT\Simon Main Obsidian".to_string()
-            ),
-            comfyui_url: Mutex::new("http://127.0.0.1:8188".to_string()),
+            data: Mutex::new(data),
+            config_path: Mutex::new(config_path),
+            obsidian_vault_path: Mutex::new(obsidian),
+            comfyui_url: Mutex::new(comfyui),
         }
     }
+
+    /// Save current config to disk
+    pub fn save(&self) -> Result<(), String> {
+        let data = self.data.lock().unwrap();
+        let path = self.config_path.lock().unwrap();
+        let json = serde_json::to_string_pretty(&*data)
+            .map_err(|e| format!("Serialize error: {}", e))?;
+        fs::write(&*path, json)
+            .map_err(|e| format!("Write error: {}", e))?;
+        Ok(())
+    }
+
+    /// Sync backward-compat fields after a config update
+    pub fn sync_fields(&self) {
+        let data = self.data.lock().unwrap();
+        *self.obsidian_vault_path.lock().unwrap() = data.obsidian_vault_path.clone();
+        *self.comfyui_url.lock().unwrap() = data.comfyui_url.clone();
+    }
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        let data = ConfigData::default();
+        let obsidian = data.obsidian_vault_path.clone();
+        let comfyui = data.comfyui_url.clone();
+        Self {
+            data: Mutex::new(data),
+            config_path: Mutex::new(PathBuf::from("config.json")),
+            obsidian_vault_path: Mutex::new(obsidian),
+            comfyui_url: Mutex::new(comfyui),
+        }
+    }
+}
+
+#[tauri::command]
+fn get_config(config: State<AppConfig>) -> ConfigData {
+    config.data.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn save_config(config: State<AppConfig>, new_config: ConfigData) -> Result<String, String> {
+    {
+        let mut data = config.data.lock().unwrap();
+        *data = new_config;
+    }
+    config.sync_fields();
+    config.save()?;
+    Ok("Config saved".to_string())
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1439,14 +1567,24 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            // Load config from app data directory
+            let config_dir = app.path().app_data_dir()
+                .expect("Failed to resolve app data dir");
+            let config = AppConfig::load(&config_dir);
+            app.manage(config);
+            Ok(())
+        })
         .manage(ToolRegistryState::default())
-        .manage(AppConfig::default())
         .invoke_handler(tauri::generate_handler![
             // Tool registry
             list_tools,
             get_tool,
             list_executions,
             log_execution,
+            // Config
+            get_config,
+            save_config,
             // System
             scan_system,
             list_processes,

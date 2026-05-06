@@ -76,6 +76,21 @@ export interface ToolCapability {
   notes: string;
 }
 
+export interface ConfigData {
+  mcp_port: number;
+  obsidian_vault_path: string;
+  comfyui_url: string;
+  stirling_pdf_url: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_password: string;
+  llm_provider: string;
+  llm_model: string;
+  api_key: string;
+  agent_mode: string;
+}
+
 export type AgentMode = 'autopilot' | 'spectator' | 'copilot';
 
 interface ToolboxStore {
@@ -108,12 +123,20 @@ interface ToolboxStore {
   scanningCapabilities: boolean;
   checkCapabilities: () => Promise<void>;
 
-  // Agent Mode
+  // Config
+  config: ConfigData | null;
+  configLoading: boolean;
+  configSaving: boolean;
+  configSaved: boolean;
+  loadConfig: () => Promise<void>;
+  saveConfig: (config: ConfigData) => Promise<void>;
+
+  // Agent Mode (derived from config)
   agentMode: AgentMode;
   setAgentMode: (mode: AgentMode) => void;
 }
 
-export const useToolboxStore = create<ToolboxStore>((set) => ({
+export const useToolboxStore = create<ToolboxStore>((set, get) => ({
   // Tools
   tools: [],
   loadingTools: false,
@@ -198,7 +221,52 @@ export const useToolboxStore = create<ToolboxStore>((set) => ({
     }
   },
 
+  // Config
+  config: null,
+  configLoading: false,
+  configSaving: false,
+  configSaved: false,
+  loadConfig: async () => {
+    set({ configLoading: true });
+    try {
+      const config = await invoke<ConfigData>('get_config');
+      set({
+        config,
+        configLoading: false,
+        agentMode: (config.agent_mode as AgentMode) || 'copilot',
+      });
+    } catch (err) {
+      console.error('Failed to load config:', err);
+      set({ configLoading: false });
+    }
+  },
+  saveConfig: async (newConfig: ConfigData) => {
+    set({ configSaving: true, configSaved: false });
+    try {
+      await invoke('save_config', { newConfig });
+      set({
+        config: newConfig,
+        configSaving: false,
+        configSaved: true,
+        agentMode: (newConfig.agent_mode as AgentMode) || 'copilot',
+      });
+      // Auto-clear saved indicator after 2s
+      setTimeout(() => set({ configSaved: false }), 2000);
+    } catch (err) {
+      console.error('Failed to save config:', err);
+      set({ configSaving: false });
+    }
+  },
+
   // Agent Mode
   agentMode: 'copilot',
-  setAgentMode: (mode) => set({ agentMode: mode }),
+  setAgentMode: (mode) => {
+    set({ agentMode: mode });
+    // Also persist to config
+    const config = get().config;
+    if (config) {
+      get().saveConfig({ ...config, agent_mode: mode });
+    }
+  },
 }));
+
