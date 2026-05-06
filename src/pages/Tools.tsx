@@ -5,7 +5,6 @@ import {
   Wrench,
   Zap,
   Terminal,
-  HardDrive,
   Cpu,
   Download,
   ChevronRight
