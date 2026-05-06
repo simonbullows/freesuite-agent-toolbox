@@ -60,7 +60,7 @@ FreeSuite is **two separate products** with two separate repos:
 | Gmail/Outlook | **IMAP/SMTP** | Protocol-level | 🔶 Schema |
 | Adobe Premiere | **FFmpeg** | CLI | ✅ Implemented |
 | Notion | **Obsidian** | Filesystem (markdown) | ✅ Implemented |
-| Figma/Canva | **[Open Design](https://github.com/nexu-io/open-design)** | CLI + daemon | 🔶 Planned |
+| Figma/Canva | **[Penpot](https://penpot.app)** | REST API | 📋 Planned |
 | Salesforce | **Twenty CRM** | GraphQL + MCP | 📋 Planned |
 | Jira/Asana | **Plane** | REST API | 📋 Planned |
 | Adobe Photoshop | **ComfyUI** | HTTP + WebSocket | 🔶 Partial |
@@ -68,11 +68,9 @@ FreeSuite is **two separate products** with two separate repos:
 | Maya/3DS Max | **Blender** | `--background --python` | 🔶 Schema |
 | Unity | **Godot** | `--headless --script` | 🔶 Schema |
 
-### Open Design Integration
+### ⚠️ Open Design — NOT in this repo
 
-[Open Design](https://github.com/nexu-io/open-design) (30k+ ★) is a local-first, open-source design platform with **19 skills** and **71 brand-grade design systems**. It auto-detects coding agents on your PATH (including Hermes) and turns them into a design engine. Agents can generate web/desktop/mobile prototypes, pitch decks, slides, images, and videos — all with sandboxed preview and HTML/PDF/PPTX/MP4 export.
-
-This replaces Figma/Canva/Pitch in the FreeSuite stack and is fully agent-drivable via its daemon CLI.
+[Open Design](https://github.com/nexu-io/open-design) (30k+ ★) is a design skill pack that extends the **agent itself**, not a tool the Toolbox calls. It belongs in your agent orchestrator (Hermes), not in this launcher. See the [Hermes config docs] for how to add it to your agent roster.
 
 ## Tech Stack
 
