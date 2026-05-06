@@ -204,6 +204,119 @@ impl Default for ToolRegistryState {
             returns: "Array of { name, installed, version, path }".into(), is_native: true,
         });
 
+        // ── Obsidian Tools ──
+        tools.push(ToolSchema {
+            id: "obsidian.read_note".into(), name: "Read Obsidian Note".into(),
+            description: "Read a note with parsed frontmatter, wikilinks, and tags".into(), category: "obsidian".into(),
+            parameters: vec![
+                ToolParameter { name: "path".into(), param_type: "string".into(), description: "Note path relative to vault root (e.g. 'Projects/MyProject.md')".into(), required: true, default_value: None },
+            ],
+            returns: "{ frontmatter, content, links[], tags[] }".into(), is_native: true,
+        });
+        tools.push(ToolSchema {
+            id: "obsidian.search".into(), name: "Search Obsidian Vault".into(),
+            description: "Full-text search across all notes in the vault".into(), category: "obsidian".into(),
+            parameters: vec![
+                ToolParameter { name: "query".into(), param_type: "string".into(), description: "Text to search for".into(), required: true, default_value: None },
+                ToolParameter { name: "folder".into(), param_type: "string".into(), description: "Limit to folder (relative path)".into(), required: false, default_value: None },
+            ],
+            returns: "Array of { file, line_number, line_content }".into(), is_native: true,
+        });
+        tools.push(ToolSchema {
+            id: "obsidian.list_notes".into(), name: "List Obsidian Notes".into(),
+            description: "List all notes in a vault folder with metadata".into(), category: "obsidian".into(),
+            parameters: vec![
+                ToolParameter { name: "folder".into(), param_type: "string".into(), description: "Folder path relative to vault root".into(), required: false, default_value: Some("".into()) },
+            ],
+            returns: "Array of { name, path, size, modified }".into(), is_native: true,
+        });
+        tools.push(ToolSchema {
+            id: "obsidian.write_note".into(), name: "Write Obsidian Note".into(),
+            description: "Create or update a note with optional frontmatter".into(), category: "obsidian".into(),
+            parameters: vec![
+                ToolParameter { name: "path".into(), param_type: "string".into(), description: "Note path relative to vault root".into(), required: true, default_value: None },
+                ToolParameter { name: "content".into(), param_type: "string".into(), description: "Markdown content".into(), required: true, default_value: None },
+                ToolParameter { name: "frontmatter".into(), param_type: "string".into(), description: "YAML frontmatter (without --- delimiters)".into(), required: false, default_value: None },
+            ],
+            returns: "{ path, bytes_written }".into(), is_native: true,
+        });
+
+        // ── FFmpeg Tools ──
+        tools.push(ToolSchema {
+            id: "ffmpeg.info".into(), name: "Media Info".into(),
+            description: "Get detailed info about a media file (codec, duration, resolution, bitrate)".into(), category: "media".into(),
+            parameters: vec![
+                ToolParameter { name: "path".into(), param_type: "string".into(), description: "Path to media file".into(), required: true, default_value: None },
+            ],
+            returns: "{ duration, codec, resolution, bitrate, format }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "ffmpeg.convert".into(), name: "Convert Media".into(),
+            description: "Convert media between formats with quality presets".into(), category: "media".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input file path".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output file path".into(), required: true, default_value: None },
+                ToolParameter { name: "quality".into(), param_type: "string".into(), description: "Quality preset: low, medium, high, lossless".into(), required: false, default_value: Some("medium".into()) },
+            ],
+            returns: "{ output_path, file_size, duration_ms }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "ffmpeg.extract_audio".into(), name: "Extract Audio".into(),
+            description: "Extract audio track from a video file".into(), category: "media".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input video path".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output audio path (e.g. output.mp3)".into(), required: true, default_value: None },
+            ],
+            returns: "{ output_path, file_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "ffmpeg.trim".into(), name: "Trim Media".into(),
+            description: "Cut media to a specific time range".into(), category: "media".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input file path".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output file path".into(), required: true, default_value: None },
+                ToolParameter { name: "start".into(), param_type: "string".into(), description: "Start time (HH:MM:SS or seconds)".into(), required: true, default_value: None },
+                ToolParameter { name: "end".into(), param_type: "string".into(), description: "End time (HH:MM:SS or seconds)".into(), required: true, default_value: None },
+            ],
+            returns: "{ output_path, file_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "ffmpeg.thumbnail".into(), name: "Generate Thumbnail".into(),
+            description: "Extract a frame from video as an image".into(), category: "media".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input video path".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output image path (e.g. thumb.png)".into(), required: true, default_value: None },
+                ToolParameter { name: "timestamp".into(), param_type: "string".into(), description: "Time to capture (HH:MM:SS or seconds)".into(), required: false, default_value: Some("00:00:01".into()) },
+            ],
+            returns: "{ output_path, width, height }".into(), is_native: false,
+        });
+
+        // ── ComfyUI Tools ──
+        tools.push(ToolSchema {
+            id: "comfy.status".into(), name: "ComfyUI Status".into(),
+            description: "Check if ComfyUI is running and get queue info".into(), category: "ai_gen".into(),
+            parameters: vec![],
+            returns: "{ running, queue_remaining, gpu_usage }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "comfy.generate".into(), name: "Generate Image".into(),
+            description: "Submit a prompt to ComfyUI for image generation".into(), category: "ai_gen".into(),
+            parameters: vec![
+                ToolParameter { name: "prompt".into(), param_type: "string".into(), description: "Text prompt for generation".into(), required: true, default_value: None },
+                ToolParameter { name: "negative_prompt".into(), param_type: "string".into(), description: "Negative prompt".into(), required: false, default_value: Some("".into()) },
+                ToolParameter { name: "workflow".into(), param_type: "string".into(), description: "Workflow template name".into(), required: false, default_value: Some("default_sdxl".into()) },
+                ToolParameter { name: "width".into(), param_type: "number".into(), description: "Image width".into(), required: false, default_value: Some("1024".into()) },
+                ToolParameter { name: "height".into(), param_type: "number".into(), description: "Image height".into(), required: false, default_value: Some("1024".into()) },
+            ],
+            returns: "{ image_path, seed, generation_time_ms }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "comfy.list_models".into(), name: "List ComfyUI Models".into(),
+            description: "List available checkpoints, LoRAs, and ControlNets".into(), category: "ai_gen".into(),
+            parameters: vec![],
+            returns: "{ checkpoints[], loras[], controlnets[] }".into(), is_native: false,
+        });
+
         Self {
             tools: Mutex::new(tools),
             executions: Mutex::new(Vec::new()),
@@ -634,6 +747,300 @@ fn scan_dependencies() -> Vec<DepInfo> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// APP CONFIG — Stores user settings like vault path, ComfyUI port
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct AppConfig {
+    pub obsidian_vault_path: Mutex<String>,
+    pub comfyui_url: Mutex<String>,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            obsidian_vault_path: Mutex::new(
+                r"C:\Users\simon\OBSIDIAN MAIN VAULT\Simon Main Obsidian".to_string()
+            ),
+            comfyui_url: Mutex::new("http://127.0.0.1:8188".to_string()),
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// OBSIDIAN TOOLS — Structured vault access
+// ═══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObsidianNote {
+    pub path: String,
+    pub frontmatter: HashMap<String, String>,
+    pub content: String,
+    pub links: Vec<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObsidianNoteEntry {
+    pub name: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub modified: Option<String>,
+}
+
+fn parse_frontmatter(raw: &str) -> (HashMap<String, String>, &str) {
+    let mut fm = HashMap::new();
+    if !raw.starts_with("---") {
+        return (fm, raw);
+    }
+    if let Some(end) = raw[3..].find("---") {
+        let fm_block = &raw[3..3 + end].trim();
+        for line in fm_block.lines() {
+            if let Some((k, v)) = line.split_once(':') {
+                fm.insert(k.trim().to_string(), v.trim().to_string());
+            }
+        }
+        let content_start = 3 + end + 3;
+        return (fm, &raw[content_start..]);
+    }
+    (fm, raw)
+}
+
+fn extract_wikilinks(content: &str) -> Vec<String> {
+    let mut links = Vec::new();
+    let mut i = 0;
+    let bytes = content.as_bytes();
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'[' && bytes[i + 1] == b'[' {
+            if let Some(end) = content[i + 2..].find("]]") {
+                let link = &content[i + 2..i + 2 + end];
+                let clean = link.split('|').next().unwrap_or(link).trim();
+                if !clean.is_empty() {
+                    links.push(clean.to_string());
+                }
+                i = i + 2 + end + 2;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    links
+}
+
+fn extract_tags(content: &str) -> Vec<String> {
+    let mut tags = Vec::new();
+    for word in content.split_whitespace() {
+        if word.starts_with('#') && word.len() > 1 && !word.starts_with("##") {
+            tags.push(word.to_string());
+        }
+    }
+    tags
+}
+
+#[tauri::command]
+fn obsidian_read_note(config: State<AppConfig>, path: String) -> Result<ObsidianNote, String> {
+    let vault = config.obsidian_vault_path.lock().unwrap().clone();
+    let full_path = PathBuf::from(&vault).join(&path);
+    let raw = fs::read_to_string(&full_path)
+        .map_err(|e| format!("Failed to read note: {}", e))?;
+
+    let (frontmatter, content) = parse_frontmatter(&raw);
+    let links = extract_wikilinks(content);
+    let tags = extract_tags(content);
+
+    Ok(ObsidianNote {
+        path,
+        frontmatter,
+        content: content.trim().to_string(),
+        links,
+        tags,
+    })
+}
+
+#[tauri::command]
+fn obsidian_search(config: State<AppConfig>, query: String, folder: Option<String>) -> Result<Vec<SearchMatch>, String> {
+    let vault = config.obsidian_vault_path.lock().unwrap().clone();
+    let search_path = match folder {
+        Some(f) => PathBuf::from(&vault).join(f),
+        None => PathBuf::from(&vault),
+    };
+    let mut results = Vec::new();
+    search_recursive(&search_path, &query, &Some("md".to_string()), &mut results, 0);
+    Ok(results)
+}
+
+#[tauri::command]
+fn obsidian_list_notes(config: State<AppConfig>, folder: Option<String>) -> Result<Vec<ObsidianNoteEntry>, String> {
+    let vault = config.obsidian_vault_path.lock().unwrap().clone();
+    let dir = match folder {
+        Some(f) if !f.is_empty() => PathBuf::from(&vault).join(f),
+        _ => PathBuf::from(&vault),
+    };
+    let mut entries = Vec::new();
+    let read = fs::read_dir(&dir).map_err(|e| format!("Failed to read vault: {}", e))?;
+    for entry in read.flatten() {
+        let path = entry.path();
+        if path.extension().map(|e| e == "md").unwrap_or(false) {
+            let meta = entry.metadata().ok();
+            entries.push(ObsidianNoteEntry {
+                name: entry.file_name().to_string_lossy().to_string(),
+                path: path.strip_prefix(&vault).unwrap_or(&path).to_string_lossy().to_string(),
+                size_bytes: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+                modified: meta.and_then(|m| m.modified().ok()).map(|t| {
+                    chrono::DateTime::<Utc>::from(t).to_rfc3339()
+                }),
+            });
+        }
+    }
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(entries)
+}
+
+#[tauri::command]
+fn obsidian_write_note(config: State<AppConfig>, path: String, content: String, frontmatter: Option<String>) -> Result<WriteResult, String> {
+    let vault = config.obsidian_vault_path.lock().unwrap().clone();
+    let full_path = PathBuf::from(&vault).join(&path);
+    if let Some(parent) = full_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create dirs: {}", e))?;
+    }
+
+    let full_content = match frontmatter {
+        Some(fm) => format!("---\n{}\n---\n\n{}", fm, content),
+        None => content,
+    };
+
+    let bytes = full_content.as_bytes();
+    fs::write(&full_path, bytes).map_err(|e| format!("Failed to write note: {}", e))?;
+    Ok(WriteResult { path: full_path.to_string_lossy().to_string(), bytes_written: bytes.len() })
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FFMPEG TOOLS — Structured media processing
+// ═══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MediaInfo {
+    pub path: String,
+    pub duration: String,
+    pub format: String,
+    pub raw_output: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MediaResult {
+    pub output_path: String,
+    pub file_size: u64,
+    pub duration_ms: u64,
+}
+
+fn run_ffmpeg(args: &[&str]) -> Result<(String, String), String> {
+    let output = std::process::Command::new("ffmpeg")
+        .args(args)
+        .output()
+        .map_err(|e| format!("FFmpeg not found or failed to start: {}", e))?;
+    Ok((
+        String::from_utf8_lossy(&output.stdout).to_string(),
+        String::from_utf8_lossy(&output.stderr).to_string(),
+    ))
+}
+
+#[tauri::command]
+fn ffmpeg_info(path: String) -> Result<MediaInfo, String> {
+    let output = std::process::Command::new("ffprobe")
+        .args(["-v", "quiet", "-show_format", "-show_streams", &path])
+        .output()
+        .map_err(|e| format!("ffprobe failed: {}", e))?;
+    let raw = String::from_utf8_lossy(&output.stdout).to_string();
+
+    let mut duration = "unknown".to_string();
+    let mut format = "unknown".to_string();
+    for line in raw.lines() {
+        if line.starts_with("duration=") { duration = line[9..].to_string(); }
+        if line.starts_with("format_name=") { format = line[12..].to_string(); }
+    }
+
+    Ok(MediaInfo { path, duration, format, raw_output: raw })
+}
+
+#[tauri::command]
+fn ffmpeg_convert(input: String, output: String, quality: Option<String>) -> Result<MediaResult, String> {
+    let start = std::time::Instant::now();
+    let q = quality.unwrap_or_else(|| "medium".into());
+    let crf = match q.as_str() {
+        "low" => "32", "high" => "18", "lossless" => "0", _ => "23",
+    };
+    let (_, stderr) = run_ffmpeg(&["-y", "-i", &input, "-crf", crf, &output])?;
+    if !Path::new(&output).exists() {
+        return Err(format!("FFmpeg conversion failed: {}", stderr));
+    }
+    let size = fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
+    Ok(MediaResult { output_path: output, file_size: size, duration_ms: start.elapsed().as_millis() as u64 })
+}
+
+#[tauri::command]
+fn ffmpeg_extract_audio(input: String, output: String) -> Result<MediaResult, String> {
+    let start = std::time::Instant::now();
+    let (_, stderr) = run_ffmpeg(&["-y", "-i", &input, "-vn", "-acodec", "libmp3lame", "-q:a", "2", &output])?;
+    if !Path::new(&output).exists() {
+        return Err(format!("Audio extraction failed: {}", stderr));
+    }
+    let size = fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
+    Ok(MediaResult { output_path: output, file_size: size, duration_ms: start.elapsed().as_millis() as u64 })
+}
+
+#[tauri::command]
+fn ffmpeg_trim(input: String, output: String, start: String, end: String) -> Result<MediaResult, String> {
+    let timer = std::time::Instant::now();
+    let (_, stderr) = run_ffmpeg(&["-y", "-i", &input, "-ss", &start, "-to", &end, "-c", "copy", &output])?;
+    if !Path::new(&output).exists() {
+        return Err(format!("Trim failed: {}", stderr));
+    }
+    let size = fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
+    Ok(MediaResult { output_path: output, file_size: size, duration_ms: timer.elapsed().as_millis() as u64 })
+}
+
+#[tauri::command]
+fn ffmpeg_thumbnail(input: String, output: String, timestamp: Option<String>) -> Result<MediaResult, String> {
+    let timer = std::time::Instant::now();
+    let ts = timestamp.unwrap_or_else(|| "00:00:01".into());
+    let (_, stderr) = run_ffmpeg(&["-y", "-i", &input, "-ss", &ts, "-vframes", "1", &output])?;
+    if !Path::new(&output).exists() {
+        return Err(format!("Thumbnail failed: {}", stderr));
+    }
+    let size = fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
+    Ok(MediaResult { output_path: output, file_size: size, duration_ms: timer.elapsed().as_millis() as u64 })
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COMFYUI TOOLS — Image generation via ComfyUI API
+// ═══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComfyStatus {
+    pub running: bool,
+    pub queue_remaining: u32,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+async fn comfy_status(config: State<'_, AppConfig>) -> Result<ComfyStatus, String> {
+    let url = config.comfyui_url.lock().unwrap().clone();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build().map_err(|e| e.to_string())?;
+
+    match client.get(format!("{}/queue", url)).send().await {
+        Ok(resp) => {
+            let body = resp.text().await.unwrap_or_default();
+            let json: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+            let remaining = json["queue_running"].as_array().map(|a| a.len() as u32).unwrap_or(0)
+                + json["queue_pending"].as_array().map(|a| a.len() as u32).unwrap_or(0);
+            Ok(ComfyStatus { running: true, queue_remaining: remaining, error: None })
+        },
+        Err(e) => Ok(ComfyStatus { running: false, queue_remaining: 0, error: Some(format!("Not reachable: {}", e)) }),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // APP ENTRY
 // ═══════════════════════════════════════════════════════════════════
 
@@ -644,6 +1051,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(ToolRegistryState::default())
+        .manage(AppConfig::default())
         .invoke_handler(tauri::generate_handler![
             // Tool registry
             list_tools,
@@ -666,7 +1074,21 @@ pub fn run() {
             web_fetch,
             // Dependencies
             scan_dependencies,
+            // Obsidian
+            obsidian_read_note,
+            obsidian_search,
+            obsidian_list_notes,
+            obsidian_write_note,
+            // FFmpeg
+            ffmpeg_info,
+            ffmpeg_convert,
+            ffmpeg_extract_audio,
+            ffmpeg_trim,
+            ffmpeg_thumbnail,
+            // ComfyUI
+            comfy_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
