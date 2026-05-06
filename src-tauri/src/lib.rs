@@ -563,7 +563,7 @@ fn scan_system() -> SystemScan {
             mount_point: d.mount_point().to_string_lossy().to_string(),
             total_gb: d.total_space() as f64 / 1_073_741_824.0,
             available_gb: d.available_space() as f64 / 1_073_741_824.0,
-            fs_type: String::from_utf8_lossy(d.file_system()).to_string(),
+            fs_type: d.file_system().to_string_lossy().to_string(),
         })
         .collect();
 
