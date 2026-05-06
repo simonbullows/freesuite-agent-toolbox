@@ -59,6 +59,13 @@ export interface ProcessInfo {
   memory_mb: number;
 }
 
+export interface DepInfo {
+  name: string;
+  installed: boolean;
+  version: string | null;
+  category: string;
+}
+
 interface ToolboxStore {
   // Tools
   tools: ToolSchema[];
@@ -78,6 +85,11 @@ interface ToolboxStore {
   processes: ProcessInfo[];
   loadingProcesses: boolean;
   fetchProcesses: (sortBy?: string, limit?: number) => Promise<void>;
+
+  // Dependencies
+  dependencies: DepInfo[];
+  scanningDeps: boolean;
+  scanDependencies: () => Promise<void>;
 }
 
 export const useToolboxStore = create<ToolboxStore>((set) => ({
@@ -134,6 +146,20 @@ export const useToolboxStore = create<ToolboxStore>((set) => ({
     } catch (err) {
       console.error('Failed to fetch processes:', err);
       set({ loadingProcesses: false });
+    }
+  },
+
+  // Dependencies
+  dependencies: [],
+  scanningDeps: false,
+  scanDependencies: async () => {
+    set({ scanningDeps: true });
+    try {
+      const deps = await invoke<DepInfo[]>('scan_dependencies');
+      set({ dependencies: deps, scanningDeps: false });
+    } catch (err) {
+      console.error('Failed to scan dependencies:', err);
+      set({ scanningDeps: false });
     }
   },
 }));
