@@ -379,6 +379,109 @@ impl Default for ToolRegistryState {
             returns: "Array of { tool, min_vram_mb, your_vram_mb, status, notes }".into(), is_native: true,
         });
 
+        // ── LibreOffice Tools ──
+        tools.push(ToolSchema {
+            id: "office.convert".into(), name: "Convert Document".into(),
+            description: "Convert between document formats (docx→pdf, csv→xlsx, md→html, etc.)".into(), category: "office".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input file path".into(), required: true, default_value: None },
+                ToolParameter { name: "format".into(), param_type: "string".into(), description: "Target format: pdf, docx, xlsx, html, txt, epub".into(), required: true, default_value: None },
+                ToolParameter { name: "output_dir".into(), param_type: "string".into(), description: "Output directory (default: same as input)".into(), required: false, default_value: None },
+            ],
+            returns: "{ output_path, file_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "office.create_document".into(), name: "Create Document".into(),
+            description: "Create a document from markdown/text content and convert to target format".into(), category: "office".into(),
+            parameters: vec![
+                ToolParameter { name: "content".into(), param_type: "string".into(), description: "Document content (markdown or plain text)".into(), required: true, default_value: None },
+                ToolParameter { name: "output_path".into(), param_type: "string".into(), description: "Output file path (e.g. report.pdf, data.xlsx)".into(), required: true, default_value: None },
+                ToolParameter { name: "title".into(), param_type: "string".into(), description: "Document title".into(), required: false, default_value: None },
+            ],
+            returns: "{ output_path, file_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "office.status".into(), name: "LibreOffice Status".into(),
+            description: "Check if LibreOffice is installed".into(), category: "office".into(),
+            parameters: vec![],
+            returns: "{ installed, version }".into(), is_native: false,
+        });
+
+        // ── Stirling PDF Tools ──
+        tools.push(ToolSchema {
+            id: "pdf.merge".into(), name: "Merge PDFs".into(),
+            description: "Combine multiple PDF files into one".into(), category: "pdf".into(),
+            parameters: vec![
+                ToolParameter { name: "input_files".into(), param_type: "string".into(), description: "Comma-separated list of PDF paths".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output PDF path".into(), required: true, default_value: None },
+            ],
+            returns: "{ output_path, file_size, page_count }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "pdf.convert".into(), name: "Convert to/from PDF".into(),
+            description: "Convert HTML/DOCX/images to PDF or PDF to images/text".into(), category: "pdf".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input file path".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output file path".into(), required: true, default_value: None },
+            ],
+            returns: "{ output_path, file_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "pdf.compress".into(), name: "Compress PDF".into(),
+            description: "Reduce PDF file size".into(), category: "pdf".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input PDF path".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output PDF path".into(), required: true, default_value: None },
+            ],
+            returns: "{ output_path, original_size, compressed_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "pdf.split".into(), name: "Split PDF".into(),
+            description: "Split PDF into separate pages or page ranges".into(), category: "pdf".into(),
+            parameters: vec![
+                ToolParameter { name: "input".into(), param_type: "string".into(), description: "Input PDF path".into(), required: true, default_value: None },
+                ToolParameter { name: "pages".into(), param_type: "string".into(), description: "Page ranges to extract (e.g. '1-3,5,8-10')".into(), required: true, default_value: None },
+                ToolParameter { name: "output".into(), param_type: "string".into(), description: "Output PDF path".into(), required: true, default_value: None },
+            ],
+            returns: "{ output_path, file_size }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "pdf.status".into(), name: "Stirling PDF Status".into(),
+            description: "Check if Stirling PDF service is running".into(), category: "pdf".into(),
+            parameters: vec![],
+            returns: "{ running, url }".into(), is_native: false,
+        });
+
+        // ── Email Tools ──
+        tools.push(ToolSchema {
+            id: "email.send".into(), name: "Send Email".into(),
+            description: "Send an email via SMTP".into(), category: "email".into(),
+            parameters: vec![
+                ToolParameter { name: "to".into(), param_type: "string".into(), description: "Recipient email address".into(), required: true, default_value: None },
+                ToolParameter { name: "subject".into(), param_type: "string".into(), description: "Email subject".into(), required: true, default_value: None },
+                ToolParameter { name: "body".into(), param_type: "string".into(), description: "Email body (plain text or HTML)".into(), required: true, default_value: None },
+                ToolParameter { name: "html".into(), param_type: "boolean".into(), description: "Send as HTML email".into(), required: false, default_value: Some("false".into()) },
+            ],
+            returns: "{ sent: true, message_id }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "email.inbox".into(), name: "Check Inbox".into(),
+            description: "List recent emails from IMAP inbox".into(), category: "email".into(),
+            parameters: vec![
+                ToolParameter { name: "count".into(), param_type: "number".into(), description: "Number of recent emails to fetch".into(), required: false, default_value: Some("10".into()) },
+                ToolParameter { name: "unread_only".into(), param_type: "boolean".into(), description: "Only show unread emails".into(), required: false, default_value: Some("false".into()) },
+            ],
+            returns: "Array of { from, subject, date, preview, read }".into(), is_native: false,
+        });
+        tools.push(ToolSchema {
+            id: "email.read".into(), name: "Read Email".into(),
+            description: "Read the full content of a specific email".into(), category: "email".into(),
+            parameters: vec![
+                ToolParameter { name: "message_id".into(), param_type: "string".into(), description: "Message ID from inbox listing".into(), required: true, default_value: None },
+            ],
+            returns: "{ from, to, subject, date, body, attachments[] }".into(), is_native: false,
+        });
+
         Self {
             tools: Mutex::new(tools),
             executions: Mutex::new(Vec::new()),
@@ -1136,6 +1239,8 @@ fn check_capabilities() -> Vec<ToolCapability> {
         ("ACE-Step (base)",    "music",  4096, "",          "Music gen, base model"),
         ("ACE-Step (XL)",      "music",  12288,"",          "Music gen, high quality"),
         ("Open Design",        "design", 0,    "",          "LLM-driven, no GPU needed"),
+        ("LibreOffice",        "office", 0,    "soffice",   "Document conversion, CPU-only"),
+        ("Stirling PDF",       "pdf",    0,    "",          "PDF toolkit, runs as Docker service"),
     ];
 
     tool_reqs.iter().map(|(name, cat, min_vram, cmd, notes)| {
@@ -1190,6 +1295,141 @@ fn detect_vram_mb() -> u64 {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// LIBREOFFICE TOOLS — Document conversion
+// ═══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfficeResult {
+    pub output_path: String,
+    pub file_size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfficeStatus {
+    pub installed: bool,
+    pub version: Option<String>,
+}
+
+#[tauri::command]
+fn office_status() -> OfficeStatus {
+    let result = std::process::Command::new("soffice")
+        .arg("--version")
+        .output();
+    match result {
+        Ok(out) if out.status.success() => {
+            let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            OfficeStatus { installed: true, version: Some(ver) }
+        },
+        _ => OfficeStatus { installed: false, version: None },
+    }
+}
+
+#[tauri::command]
+fn office_convert(input: String, format: String, output_dir: Option<String>) -> Result<OfficeResult, String> {
+    let out_dir = output_dir.unwrap_or_else(|| {
+        Path::new(&input).parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| ".".into())
+    });
+
+    let output = std::process::Command::new("soffice")
+        .args(["--headless", "--convert-to", &format, "--outdir", &out_dir, &input])
+        .output()
+        .map_err(|e| format!("LibreOffice not found: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Conversion failed: {}", stderr));
+    }
+
+    // Determine output filename
+    let input_stem = Path::new(&input).file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "output".into());
+    let output_path = PathBuf::from(&out_dir).join(format!("{}.{}", input_stem, format));
+    let size = fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
+
+    Ok(OfficeResult {
+        output_path: output_path.to_string_lossy().to_string(),
+        file_size: size,
+    })
+}
+
+#[tauri::command]
+fn office_create_document(content: String, output_path: String, title: Option<String>) -> Result<OfficeResult, String> {
+    // Write content to a temp .html file, then convert with LibreOffice
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("freesuite_temp_doc.html");
+
+    let html_content = format!(
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>{}</title></head><body>{}</body></html>",
+        title.unwrap_or_else(|| "Document".into()),
+        content.replace('\n', "<br>")
+    );
+    fs::write(&temp_file, &html_content).map_err(|e| format!("Failed to write temp: {}", e))?;
+
+    // Determine target format from extension
+    let ext = Path::new(&output_path).extension()
+        .map(|e| e.to_string_lossy().to_string())
+        .unwrap_or_else(|| "pdf".into());
+
+    let out_dir = Path::new(&output_path).parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| ".".into());
+
+    // Create output directory if needed
+    if let Some(parent) = Path::new(&output_path).parent() {
+        fs::create_dir_all(parent).ok();
+    }
+
+    let result = std::process::Command::new("soffice")
+        .args(["--headless", "--convert-to", &ext, "--outdir", &out_dir, &temp_file.to_string_lossy().as_ref()])
+        .output()
+        .map_err(|e| format!("LibreOffice not found: {}", e))?;
+
+    // Clean up temp
+    fs::remove_file(&temp_file).ok();
+
+    if !result.status.success() {
+        return Err(format!("Document creation failed: {}", String::from_utf8_lossy(&result.stderr)));
+    }
+
+    // Rename to desired output name
+    let generated = PathBuf::from(&out_dir).join(format!("freesuite_temp_doc.{}", ext));
+    if generated.exists() && generated.to_string_lossy() != output_path {
+        fs::rename(&generated, &output_path).map_err(|e| format!("Rename failed: {}", e))?;
+    }
+
+    let size = fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
+    Ok(OfficeResult { output_path, file_size: size })
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STIRLING PDF TOOLS — PDF processing via REST API
+// ═══════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PdfStatus {
+    pub running: bool,
+    pub url: String,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+async fn pdf_status(config: State<'_, AppConfig>) -> Result<PdfStatus, String> {
+    let url = "http://127.0.0.1:8080".to_string(); // Default Stirling PDF port
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build().map_err(|e| e.to_string())?;
+
+    match client.get(format!("{}/api/v1/info/status", url)).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            Ok(PdfStatus { running: true, url, error: None })
+        },
+        Ok(resp) => Ok(PdfStatus { running: true, url: url.clone(), error: Some(format!("Status: {}", resp.status())) }),
+        Err(e) => Ok(PdfStatus { running: false, url, error: Some(format!("Not reachable: {}", e)) }),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // APP ENTRY
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1238,8 +1478,13 @@ pub fn run() {
             comfy_status,
             // Capability gate
             check_capabilities,
+            // LibreOffice
+            office_status,
+            office_convert,
+            office_create_document,
+            // Stirling PDF
+            pdf_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
